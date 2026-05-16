@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "176191742516",
+    "project_id": "raitha-vartha-6b0cd",
+    "storage_bucket": "raitha-vartha-6b0cd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:176191742516:android:e5a31dce26120f5f7c6061",
+        "android_client_info": {
+          "package_name": "com.example.raitha_vartha"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "176191742516-8m4kd57hr50ln5jocps8feb6hgfn69cd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.raitha_vartha",
+            "certificate_hash": "da48386a7569b94719741f06c6b5835c31cc0a02"
+          }
+        },
+        {
+          "client_id": "176191742516-s9ibk08sv5fnrrgerrndcdv0pkeoj656.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCFJsh8oQDSMnbuMmS32QqWqS7mQmKvyzQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "176191742516-s9ibk08sv5fnrrgerrndcdv0pkeoj656.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
