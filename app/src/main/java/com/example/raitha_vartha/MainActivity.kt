@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -19,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,7 +58,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -71,6 +72,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
 import com.bumptech.glide.integration.compose.GlideImage
+import com.bumptech.glide.integration.compose.GlideSubcomposition
+import com.bumptech.glide.integration.compose.RequestState
 import com.bumptech.glide.integration.compose.placeholder
 import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.example.raitha_vartha.ui.theme.RaithaVarthaTheme
@@ -103,7 +106,8 @@ class MainActivity : ComponentActivity() {
         Firebase.initialize(context = applicationContext)
         
         val firebaseAppCheck = Firebase.appCheck
-        if (BuildConfig.DEBUG) {
+        val isDebug = (applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (isDebug) {
             firebaseAppCheck.installAppCheckProviderFactory(
                 DebugAppCheckProviderFactory.getInstance()
             )
@@ -667,8 +671,8 @@ fun MainAppContent(viewModel: TipViewModel, repository: FirestoreRepository, sna
     
     if (showDiseaseResult != null) {
         AlertDialog(
-            onDismissRequest = { showDiseaseResult = null },
-            confirmButton = { Button(onClick = { showDiseaseResult = null }) { Text("Close") } },
+            onDismissRequest = { if (showDiseaseResult != null) showDiseaseResult = null },
+            confirmButton = { Button(onClick = { if (showDiseaseResult != null) showDiseaseResult = null }) { Text("Close") } },
             title = { Text(showDiseaseResult!!.first, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
             text = { Text(showDiseaseResult!!.second) }
         )
@@ -833,18 +837,32 @@ fun MainAppContent(viewModel: TipViewModel, repository: FirestoreRepository, sna
                             .background(Color(0xFF1B5E20)) 
                             .padding(start = 24.dp, top = 32.dp, bottom = 16.dp)) {
                             Column {
-                                GlideImage(
+                                GlideSubcomposition(
                                     model = user.profileImageUri,
-                                    contentDescription = "User Profile",
                                     modifier = Modifier
                                         .size(100.dp)
                                         .clip(CircleShape)
                                         .background(Color.White)
                                         .border(2.dp, Color.White, CircleShape),
-                                    contentScale = ContentScale.Crop,
-                                    loading = placeholder { Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(100.dp), tint = Color.LightGray) },
                                     requestBuilderTransform = { it.diskCacheStrategy(DiskCacheStrategy.ALL) }
-                                )
+                                ) {
+                                    when (state) {
+                                        is RequestState.Loading -> {
+                                            Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(100.dp), tint = Color.LightGray)
+                                        }
+                                        is RequestState.Success -> {
+                                            Image(
+                                                painter = painter,
+                                                contentDescription = "User Profile",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                        else -> {
+                                            Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(100.dp), tint = Color.LightGray)
+                                        }
+                                    }
+                                }
                                 Spacer(Modifier.height(16.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
@@ -1200,14 +1218,28 @@ fun FarmerProfileCard(farmer: UserEntity) {
         colors = CardDefaults.elevatedCardColors(containerColor = Color.White)
     ) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            GlideImage(
+            GlideSubcomposition(
                 model = farmer.profileImageUri,
-                contentDescription = null,
                 modifier = Modifier.size(60.dp).clip(CircleShape).background(Color.LightGray),
-                contentScale = ContentScale.Crop,
-                loading = placeholder { Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(60.dp)) },
                 requestBuilderTransform = { it.diskCacheStrategy(DiskCacheStrategy.ALL) }
-            )
+            ) {
+                when (state) {
+                    is RequestState.Loading -> {
+                        Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(60.dp))
+                    }
+                    is RequestState.Success -> {
+                        Image(
+                            painter = painter,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    else -> {
+                        Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(60.dp))
+                    }
+                }
+            }
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1414,7 +1446,28 @@ fun ProfileScreen(user: UserEntity, repository: FirestoreRepository, onBack: () 
         Column(modifier = Modifier.padding(p).fillMaxSize().verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.height(32.dp))
             Box(modifier = Modifier.size(150.dp).clickable(enabled = editMode) { launcher.launch("image/*") }) {
-                GlideImage(model = profileUri, contentDescription = null, modifier = Modifier.fillMaxSize().clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentScale = ContentScale.Crop, loading = placeholder { Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(100.dp)) }, requestBuilderTransform = { it.diskCacheStrategy(DiskCacheStrategy.ALL) })
+                GlideSubcomposition(
+                    model = profileUri,
+                    modifier = Modifier.fillMaxSize().clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                    requestBuilderTransform = { it.diskCacheStrategy(DiskCacheStrategy.ALL) }
+                ) {
+                    when (state) {
+                        is RequestState.Loading -> {
+                            Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(100.dp))
+                        }
+                        is RequestState.Success -> {
+                            Image(
+                                painter = painter,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        else -> {
+                            Icon(Icons.Default.AccountCircle, null, modifier = Modifier.size(100.dp))
+                        }
+                    }
+                }
                 if (editMode) Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)).clip(CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Default.CameraAlt, null, tint = Color.White) }
             }
             Spacer(Modifier.height(32.dp))
@@ -1467,7 +1520,32 @@ fun TipCard(tip: TipEntity, lang: AppLanguage, isAdmin: Boolean, isOwner: Boolea
     ElevatedCard(modifier = Modifier.fillMaxSize().padding(16.dp), shape = RoundedCornerShape(24.dp)) {
         Column {
             Box(modifier = Modifier.weight(1.3f).fillMaxWidth()) {
-                GlideImage(model = tip.imageUrl, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop, loading = placeholder { CircularProgressIndicator() }, requestBuilderTransform = { it.diskCacheStrategy(DiskCacheStrategy.ALL) })
+                GlideSubcomposition(
+                    model = tip.imageUrl,
+                    modifier = Modifier.fillMaxSize(),
+                    requestBuilderTransform = { it.diskCacheStrategy(DiskCacheStrategy.ALL) }
+                ) {
+                    when (state) {
+                        is RequestState.Loading -> {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                        is RequestState.Success -> {
+                            Image(
+                                painter = painter,
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        else -> {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.BrokenImage, null)
+                            }
+                        }
+                    }
+                }
                 if (tip.isVerified) Icon(Icons.Default.Verified, null, tint = Color.Yellow, modifier = Modifier.padding(16.dp).align(Alignment.TopEnd))
             }
             Column(modifier = Modifier.padding(16.dp).weight(1f).verticalScroll(rememberScrollState())) {
@@ -1747,17 +1825,31 @@ fun AdminDashboardScreen(repository: FirestoreRepository, onBack: () -> Unit) {
                                                     .border(2.dp, Color.White, RoundedCornerShape(12.dp))
                                                     .clickable { zoomedImageUrl = user.verificationDocumentUri }
                                             ) {
-                                                GlideImage(
+                                                GlideSubcomposition(
                                                     model = user.verificationDocumentUri,
-                                                    contentDescription = "Document",
-                                                    modifier = Modifier.fillMaxSize(),
-                                                    contentScale = ContentScale.Fit,
-                                                    loading = placeholder { 
-                                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                            CircularProgressIndicator(color = Color.White)
+                                                    modifier = Modifier.fillMaxSize()
+                                                ) {
+                                                    when (state) {
+                                                        is RequestState.Loading -> {
+                                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                                CircularProgressIndicator(color = Color.White)
+                                                            }
+                                                        }
+                                                        is RequestState.Success -> {
+                                                            Image(
+                                                                painter = painter,
+                                                                contentDescription = "Document",
+                                                                modifier = Modifier.fillMaxSize(),
+                                                                contentScale = ContentScale.Fit
+                                                            )
+                                                        }
+                                                        else -> {
+                                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                                Icon(Icons.Default.BrokenImage, null, tint = Color.White)
+                                                            }
                                                         }
                                                     }
-                                                )
+                                                }
                                             }
                                         } else {
                                             Spacer(Modifier.height(16.dp))
