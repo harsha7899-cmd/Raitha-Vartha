@@ -21,14 +21,23 @@ data class TipEntity(
     var isUserCrop: Boolean = false,
 
     val authorEmail: String = "",
-    val isVerified: Boolean = false,
+    
+    @get:PropertyName("verified")
+    @set:PropertyName("verified")
+    var isVerified: Boolean = false,
+    
     val authorName: String = "",
 
-    // New fields for Post Cards
-    val isPostCard: Boolean = false,
-    val isAdminApproved: Boolean = false,
+    @get:PropertyName("postCard")
+    @set:PropertyName("postCard")
+    var isPostCard: Boolean = false,
+    
+    @get:PropertyName("approvedByAdmin")
+    @set:PropertyName("approvedByAdmin")
+    var isAdminApproved: Boolean = false,
+    
     val likesCount: Int = 0,
-    val likedBy: List<String> = emptyList(), // Emails of users who liked
+    val likedBy: List<String> = emptyList(),
     val timestamp: Long = System.currentTimeMillis()
 )
 

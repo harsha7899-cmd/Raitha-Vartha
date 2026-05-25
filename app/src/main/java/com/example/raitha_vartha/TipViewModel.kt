@@ -29,11 +29,30 @@ class TipViewModel(private val repository: FirestoreRepository) : ViewModel() {
     private val _notificationsEnabled = MutableStateFlow(true)
     val notificationsEnabled: StateFlow<Boolean> = _notificationsEnabled
 
+    private val _currentUserEmail = MutableStateFlow<String?>(null)
+    
+    fun setCurrentUser(email: String?) {
+        _currentUserEmail.value = email
+    }
+
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
+
+    val categories: StateFlow<List<String>> = repository.getAllTips().map { allTips ->
+        val baseCats = listOf("All", "My Crops", "Success Stories")
+        val fixedCrops = listOf("Paddy", "Areca nut", "Coconut", "Tomato")
+        val dynamicCats = allTips.map { it.category }
+            .filter { it.isNotBlank() && !fixedCrops.contains(it) && !baseCats.contains(it) }
+            .distinct()
+        baseCats + fixedCrops + dynamicCats
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = listOf("All", "My Crops", "Success Stories", "Paddy", "Areca nut", "Coconut", "Tomato")
+    )
 
     val tips: StateFlow<List<TipEntity>> = combine(
         repository.getAllTips()
@@ -45,14 +64,19 @@ class TipViewModel(private val repository: FirestoreRepository) : ViewModel() {
                 _isLoading.value = false
                 _error.value = "Network Error: Please check your internet connection."
             },
-        _selectedCategory
-    ) { allTips, category ->
+        _selectedCategory,
+        _currentUserEmail
+    ) { allTips, category, userEmail ->
         val filtered = when (category) {
-            null, "All" -> allTips
+            null, "All" -> allTips.filter { 
+                !it.isPostCard || it.isAdminApproved || it.authorEmail == "admin@raithavartha.com" || it.authorEmail == userEmail 
+            }
             "My Crops" -> allTips.filter { it.isUserCrop }
             "Success Stories" -> allTips.filter { it.isSuccessStory }
-            "Post Cards" -> allTips.filter { it.isPostCard && (it.isAdminApproved || it.authorEmail == "admin@example.com") } // Simplified filter
-            else -> allTips.filter { it.category.equals(category, ignoreCase = true) }
+            else -> allTips.filter { 
+                it.category.equals(category, ignoreCase = true) && 
+                (!it.isPostCard || it.isAdminApproved || it.authorEmail == "admin@raithavartha.com" || it.authorEmail == userEmail)
+            }
         }
         filtered.sortedByDescending { it.timestamp }
     }.stateIn(
@@ -60,6 +84,10 @@ class TipViewModel(private val repository: FirestoreRepository) : ViewModel() {
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
+
+    fun hasPendingPost(email: String): Flow<Boolean> = repository.getAllTips().map { allTips ->
+        allTips.any { it.authorEmail == email && it.isPostCard && !it.isAdminApproved }
+    }
 
     fun selectCategory(category: String?) {
         _selectedCategory.value = category
@@ -96,37 +124,55 @@ class TipViewModel(private val repository: FirestoreRepository) : ViewModel() {
         }
     }
     
-    fun addSuccessStory(title: String, summary: String, imageUrl: String) {
+    fun addSuccessStory(title: String, summary: String, imageUriString: String) {
         viewModelScope.launch {
-            repository.insertTip(
-                TipEntity(
-                    id = "story_${System.currentTimeMillis()}",
-                    title = title,
-                    instruction = summary,
-                    category = "Success Stories",
-                    imageUrl = imageUrl,
-                    isSuccessStory = true,
-                    timestamp = System.currentTimeMillis()
+            try {
+                _isLoading.value = true
+                val imageUrl = repository.uploadImage(Uri.parse(imageUriString), "success_stories")
+                repository.insertTip(
+                    TipEntity(
+                        id = "story_${System.currentTimeMillis()}",
+                        title = title,
+                        instruction = summary,
+                        category = "Success Stories",
+                        imageUrl = imageUrl,
+                        isSuccessStory = true,
+                        timestamp = System.currentTimeMillis()
+                    )
                 )
-            )
+                _isLoading.value = false
+            } catch (e: Exception) {
+                _isLoading.value = false
+                _error.value = "Failed to upload story: ${e.message}"
+            }
         }
     }
 
-    fun postExpertTip(user: UserEntity, title: String, instruction: String, category: String, imageUrl: String) {
+    fun postExpertTip(user: UserEntity, title: String, instruction: String, category: String, imageUriString: String) {
         viewModelScope.launch {
-            repository.insertTip(
-                TipEntity(
-                    id = "expert_${System.currentTimeMillis()}",
-                    title = title,
-                    instruction = instruction,
-                    category = category,
-                    imageUrl = imageUrl,
-                    authorEmail = user.email,
-                    authorName = "${user.firstName} ${user.lastName}",
-                    isVerified = false,
-                    timestamp = System.currentTimeMillis()
+            try {
+                _isLoading.value = true
+                val imageUrl = repository.uploadImage(Uri.parse(imageUriString), "expert_tips")
+                repository.insertTip(
+                    TipEntity(
+                        id = "expert_${System.currentTimeMillis()}",
+                        title = title,
+                        instruction = instruction,
+                        category = category,
+                        imageUrl = imageUrl,
+                        authorEmail = user.email,
+                        authorName = "${user.firstName} ${user.lastName}",
+                        isVerified = false,
+                        isPostCard = true,
+                        isAdminApproved = false,
+                        timestamp = System.currentTimeMillis()
+                    )
                 )
-            )
+                _isLoading.value = false
+            } catch (e: Exception) {
+                _isLoading.value = false
+                _error.value = "Failed to upload expert tip: ${e.message}"
+            }
         }
     }
 
